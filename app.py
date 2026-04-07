@@ -4,7 +4,7 @@ import json
 import os
 import threading
 from flask import Flask, jsonify
-from flask_cors import CORS # Iske liye requirements.txt mein flask-cors add karna
+from flask_cors import CORS
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -50,7 +50,7 @@ def get_leaderboard_data():
 
 # ====== FLASK API ======
 app_flask = Flask(__name__)
-CORS(app_flask) # Taaki game website data le sake
+CORS(app_flask)
 
 @app_flask.route('/')
 def index(): return "Bot is running..."
@@ -62,7 +62,7 @@ def api_leaderboard():
 
 # ====== BOT HANDLERS ======
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"👋 Hey {update.effective_user.first_name}!\nUse /game to play.")
+    await update.message.reply_text(f"👋 Hey {update.effective_user.first_name}!\n/game dabao khelne ke liye.")
 
 async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("✅ OKAY, LET'S PLAY! 🎮", web_app=WebAppInfo(url=GAME_URL))]]
@@ -70,10 +70,26 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # Game se score data nikaalna
         data = json.loads(update.effective_message.web_app_data.data)
-        update_score(update.effective_user.id, update.effective_user.first_name, int(data.get("score", 0)))
-        await update.message.reply_text(f"🔥 Score Saved!")
-    except: pass
+        score = int(data.get("score", 0))
+        user_name = update.effective_user.first_name
+        user_id = update.effective_user.id
+        
+        # Database mein update karna
+        update_score(user_id, user_name, score)
+        
+        # Telegram par Name aur Score ke saath message bhejna
+        # Yahan message format change kiya gaya hai
+        await update.message.reply_text(
+            f"🎯 *Game Over!*\n\n"
+            f"👤 *Player:* {user_name}\n"
+            f"🔥 *Score:* {score}\n\n"
+            f"Leaderboard check karne ke liye /score dabayein!",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logging.error(f"WebAppData Error: {e}")
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -84,6 +100,8 @@ if __name__ == "__main__":
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CommandHandler("game", game_command))
+    bot_app.add_handler(CommandHandler("score", lambda u, c: u.message.reply_text("🏆 Leaderboard API is active! Check in-game.")))
     bot_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+    
     threading.Thread(target=run_flask, daemon=True).start()
     bot_app.run_polling()

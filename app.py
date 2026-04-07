@@ -1,20 +1,25 @@
 import logging
 import sqlite3
 import json
+import os
 import threading
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # ====== CONFIG ======
-# Apni detail yahan bharein
+# Apna Bot Token yahan replace karein
 TOKEN = "8716842152:AAE_3JlzLZjr_Vgi9_Hax6rJBgmKAv5w0eQ" 
+# Apne hosted game (index.html) ka URL yahan dalein
 GAME_URL = "https://hackerboi404.github.io/Jump-to-run/"
 
 # Logging setup
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# ====== DATABASE ======
+# ====== DATABASE LOGIC ======
 def init_db():
     conn = sqlite3.connect("scores.db")
     cursor = conn.cursor()
@@ -50,78 +55,75 @@ def get_leaderboard():
     conn.close()
     return rows
 
-# ====== TELEGRAM BOT HANDLERS ======
+# ====== BOT HANDLERS ======
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_name = update.effective_user.first_name
     welcome_text = (
-        "👋 *Welcome to Neon JuMp And Run Bot!*\n\n"
-        "🎮 Use /game to start playing.\n"
-        "🏆 Use /score to see the top players."
+        f"👋 *Hey {user_name}! Welcome to Neon Archery.*\n\n"
+        "Main aapka game bot hoon. 🏹\n\n"
+        "🎮 /game - Game khelne ke liye\n"
+        "🏆 /score - Leaderboard dekhne ke liye"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
 async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Intermediate Message with 'Okay' Button
     game_text = (
         "🚀 *NEON ARCHERY DASH*\n\n"
-        "Prepare yourself! Dodge the neon pillars and set a new record.\n\n"
-        "Ready to play?"
+        "Tayyar ho? Pillars se bacho aur high score banao!\n\n"
+        "Niche button pe click karke game shuru karein 👇"
     )
-    
-    keyboard = [
-        [InlineKeyboardButton("✅ OKAY, LET'S PLAY! 🎮", web_app=WebAppInfo(url=GAME_URL))]
-    ]
+    keyboard = [[InlineKeyboardButton("✅ OKAY, LET'S PLAY! 🎮", web_app=WebAppInfo(url=GAME_URL))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
     await update.message.reply_text(game_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def score_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     top_users = get_leaderboard()
     if not top_users:
-        await update.message.reply_text("📉 No one has played yet! Be the first to score. 😉")
+        await update.message.reply_text("📉 Abhi tak kisi ne nahi khela. Aap pehle bano!")
         return
-        
-    msg = "🏆 *TOP 10 NEON ARCHERS* 🏆\n\n"
+    msg = "🏆 *TOP 10 PLAYERS* 🏆\n\n"
     for i, (user, score) in enumerate(top_users, 1):
         medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🔹"
-        msg += f"{medal} {user} — *{score}*\n"
-        
+        msg += f"{i}. {medal} {user} — *{score}*\n"
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        data = json.loads(update.effective_message.web_app_data.data)
+        raw_data = update.effective_message.web_app_data.data
+        data = json.loads(raw_data)
         score = int(data.get("score", 0))
         user = update.effective_user
-        
-        # Save to SQLite
         update_score(user.id, user.first_name, score)
-        
-        await update.message.reply_text(f"🔥 *{user.first_name}*, your score of *{score}* has been saved to the leaderboard!", parse_mode="Markdown")
+        await update.message.reply_text(f"🔥 *{user.first_name}*, aapka score *{score}* save ho gaya!")
     except Exception as e:
-        logging.error(f"Error handling web_app_data: {e}")
-        await update.message.reply_text("⚠️ Oops! Something went wrong while saving your score.")
+        logging.error(f"Error: {e}")
 
-# ====== TELEGRAM APP SETUP ======
-bot_app = ApplicationBuilder().token(TOKEN).build()
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CommandHandler("game", game_command))
-bot_app.add_handler(CommandHandler("score", score_command))
-bot_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+# ====== FLASK SERVER FOR RENDER ======
+app_flask = Flask(__name__)
 
-# ====== FLASK SERVER (For 24/7 Hosting) ======
-flask_app = Flask(__name__)
+@app_flask.route('/')
+def index():
+    return "Bot is running..."
 
-@flask_app.route("/")
-def home():
-    return "Bot is alive and running!"
+def run_flask():
+    # Render uses port 10000 by default
+    port = int(os.environ.get("PORT", 10000))
+    app_flask.run(host='0.0.0.0', port=port)
 
-# ====== RUN EVERYTHING ======
-def run_bot():
-    print("Bot is starting...")
-    bot_app.run_polling()
-
+# ====== MAIN ======
 if __name__ == "__main__":
     init_db()
-    # Flask runs in background, Bot runs in main thread
-    threading.Thread(target=lambda: flask_app.run(host="0.0.0.0", port=10000), daemon=True).start()
-    run_bot()
+    
+    # Telegram App setup
+    bot_app = ApplicationBuilder().token(TOKEN).build()
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CommandHandler("game", game_command))
+    bot_app.add_handler(CommandHandler("score", score_command))
+    bot_app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data))
+
+    # Flask ko thread mein chalayein Render ko khush rakhne ke liye
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    print("Bot is polling...")
+    bot_app.run_polling()

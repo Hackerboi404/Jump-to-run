@@ -3,153 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Archery Leaderboard Fix</title>
+    <title>Neon Archery Leaderboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #050508; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
-        #game-container { position: relative; border-radius: 12px; overflow: hidden; }
-        canvas { display: block; background: radial-gradient(circle, #16162d 0%, #050508 100%); }
-        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .glass-panel { position: absolute; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); top: 15px; left: 15px; color: #00f2ff; font-weight: bold; font-size: 18px; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; pointer-events: auto; }
-        h1 { color: #ff007b; font-size: 32px; margin: 0; text-shadow: 0 0 20px #ff007b; }
-        .btn-restart { border: none; padding: 12px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; background: linear-gradient(45deg, #00f2ff, #0062ff); margin-top: 15px; box-shadow: 0 0 15px rgba(0, 242, 255, 0.4); }
-        
-        #leaderboard-box { width: 85%; margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; color: white; }
-        .lb-title { color: #00f2ff; font-size: 12px; letter-spacing: 3px; text-align: center; margin-bottom: 15px; font-weight: bold; }
-        .lb-row { display: flex; justify-content: space-between; font-size: 15px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); margin-bottom: 4px; border-radius: 4px; }
-        .lb-name { opacity: 0.9; }
-        .lb-score { color: #ff007b; font-weight: bold; }
-        #loading-text { text-align: center; font-size: 14px; opacity: 0.5; }
+        body { margin: 0; background: #050508; color: white; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { background: #0a0a0f; display: block; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        .lb-box { width: 80%; margin-top: 20px; border-top: 1px solid #333; padding-top: 10px; }
+        .lb-row { display: flex; justify-content: space-between; padding: 5px; font-size: 14px; border-bottom: 1px solid #222; }
+        .btn { background: #00f2ff; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; margin-top: 10px; cursor: pointer; }
     </style>
 </head>
-<body onload="initGame()">
-
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        <div id="ui">
-            <div class="glass-panel" id="score-board">SCORE: 0</div>
-            <div id="overlay">
-                <h1>GAME OVER</h1>
-                <button class="btn-restart" onclick="resetGame()">RESTART</button>
-                
-                <div id="leaderboard-box">
-                    <div class="lb-title">TOP 5 PLAYERS</div>
-                    <div id="leaderboard-list">
-                        <div id="loading-text">Loading Leaderboard...</div>
-                    </div>
-                </div>
-            </div>
+<body onload="init()">
+    <div id="score" style="position:fixed; top:10px; left:10px; font-size:20px; color:#00f2ff;">SCORE: 0</div>
+    <canvas id="c"></canvas>
+    <div id="overlay">
+        <h1 style="color:#ff007b">GAME OVER</h1>
+        <button class="btn" onclick="location.reload()">RESTART</button>
+        <div class="lb-box">
+            <div style="color:#00f2ff; margin-bottom:10px;">TOP 5 RANKING</div>
+            <div id="lb-list">Loading...</div>
         </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Game ko poora screen bada kar dega
-
-        // YAHAN APNA RENDER URL DALEIN (Iske bina score nahi dikhega)
-        const RENDER_URL = "https://jump-to-run.onrender.com"; 
-        const API_URL = `${RENDER_URL.replace(/\/$/, "")}/api/leaderboard`;
-
-        const canvas = document.getElementById("gameCanvas");
+        const RENDER_URL = "https://jump-to-run.onrender.com";
+        const canvas = document.getElementById("c");
         const ctx = canvas.getContext("2d");
-        let width, height, player, obstacles, score, gameActive, frameCount;
+        let score = 0, active = true, player, pipes = [], frame = 0;
 
-        function initGame() {
-            width = Math.min(window.innerWidth, 400);
-            height = Math.min(window.innerHeight, 650);
-            canvas.width = width; canvas.height = height;
-            resetGame();
-            canvas.addEventListener("touchstart", (e) => { e.preventDefault(); if(gameActive) jump(); }, {passive: false});
-            canvas.addEventListener("mousedown", () => { if(gameActive) jump(); });
-            animate();
+        function init() {
+            canvas.width = Math.min(window.innerWidth, 400);
+            canvas.height = Math.min(window.innerHeight, 600);
+            player = { x: 50, y: canvas.height/2, v: 0 };
+            tg.expand();
+            loop();
         }
 
-        async function fetchLeaderboard() {
-            const list = document.getElementById("leaderboard-list");
-            if (RENDER_URL.includes("your-bot-name")) {
-                list.innerHTML = "<div id='loading-text'>Error: Update RENDER_URL in code!</div>";
-                return;
-            }
+        async function saveAndFetch() {
+            const user = tg.initDataUnsafe?.user || { id: 12345, first_name: "Tester" };
+            
+            // 1. Direct API Save (Fallback)
             try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-                list.innerHTML = "";
-                if(!data || data.length === 0) {
-                    list.innerHTML = "<div id='loading-text'>No scores yet! Play in DM first.</div>";
-                    return;
-                }
-                data.forEach((entry, i) => {
-                    list.innerHTML += `<div class="lb-row">
-                        <span class="lb-name">${i+1}. ${entry.name}</span>
-                        <span class="lb-score">${entry.score}</span>
-                    </div>`;
+                await fetch(`${RENDER_URL}/api/save_score`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: user.id, name: user.first_name, score: score })
                 });
-            } catch (e) {
-                list.innerHTML = "<div id='loading-text'>Leaderboard Offline</div>";
-            }
-        }
+            } catch(e) {}
 
-        function resetGame() {
-            player = { x: 60, y: height/2, w: 25, h: 25, velocity: 0, trail: [] };
-            obstacles = []; score = 0; frameCount = 0; gameActive = true;
-            document.getElementById("overlay").style.display = "none";
-            document.getElementById("score-board").innerText = `SCORE: 0`;
+            // 2. Fetch Leaderboard
+            try {
+                const res = await fetch(`${RENDER_URL}/api/leaderboard`);
+                const data = await res.json();
+                const list = document.getElementById("lb-list");
+                list.innerHTML = data.length ? "" : "No scores yet!";
+                data.forEach((u, i) => {
+                    list.innerHTML += `<div class="lb-row"><span>${i+1}. ${u.name}</span><span>${u.score}</span></div>`;
+                });
+            } catch(e) { document.getElementById("lb-list").innerHTML = "Leaderboard Error"; }
         }
-
-        function jump() { player.velocity = -4.8; }
 
         function gameOver() {
-            if(!gameActive) return;
-            gameActive = false;
+            active = false;
             document.getElementById("overlay").style.display = "flex";
+            try { tg.sendData(JSON.stringify({score: score})); } catch(e) {}
+            saveAndFetch();
+        }
+
+        function jump() { if(active) player.v = -4.5; }
+        window.addEventListener("mousedown", jump);
+        window.addEventListener("touchstart", (e) => { jump(); e.preventDefault(); });
+
+        function loop() {
+            if(!active) return;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            player.v += 0.2; player.y += player.v;
+            if(player.y < 0 || player.y > canvas.height) gameOver();
+            ctx.fillStyle = "#00f2ff"; ctx.fillRect(player.x, player.y, 25, 25);
             
-            // Score saving logic for Telegram DM
-            try {
-                tg.sendData(JSON.stringify({ score: score }));
-            } catch(e) { console.log("Group chat: sendData not supported"); }
-
-            // Leaderboard update
-            setTimeout(fetchLeaderboard, 500);
-        }
-
-        function update() {
-            if (!gameActive) return;
-            frameCount++; player.velocity += 0.22; player.y += player.velocity;
-            player.trail.push({x: player.x, y: player.y});
-            if (player.trail.length > 8) player.trail.shift();
-            if (player.y + player.h > height || player.y < 0) gameOver();
-            if (frameCount % 90 === 0) {
-                let gap = 170;
-                let h = Math.floor(Math.random() * (height - gap - 120)) + 60;
-                obstacles.push({ x: width, y: 0, w: 45, h: h, passed: false });
-                obstacles.push({ x: width, y: h + gap, w: 45, h: height-h-gap });
+            if(frame++ % 100 === 0) {
+                let h = Math.random() * (canvas.height - 250) + 50;
+                pipes.push({ x: canvas.width, y: 0, w: 40, h: h, p: false });
+                pipes.push({ x: canvas.width, y: h + 150, w: 40, h: canvas.height });
             }
-            obstacles.forEach(o => {
-                o.x -= 3.5;
-                if (player.x < o.x + o.w && player.x + 25 > o.x && player.y < o.y + o.h && player.y + 25 > o.y) gameOver();
-                if (!o.passed && o.x + o.w < player.x) { 
-                    o.passed = true; 
-                    if(obstacles.indexOf(o) % 2 === 0) { 
-                        score++; 
-                        document.getElementById("score-board").innerText = `SCORE: ${score}`; 
-                    } 
-                }
+            pipes.forEach(p => {
+                p.x -= 3;
+                ctx.fillStyle = "#ff007b"; ctx.fillRect(p.x, p.y, p.w, p.h);
+                if(player.x < p.x + p.w && player.x + 25 > p.x && player.y < p.y + p.h && player.y + 25 > p.y) gameOver();
+                if(!p.p && p.x + p.w < player.x) { p.p = true; if(pipes.indexOf(p)%2===0) { score++; document.getElementById("score").innerText = "SCORE: " + score; } }
             });
-            obstacles = obstacles.filter(o => o.x + o.w > 0);
+            pipes = pipes.filter(p => p.x > -40);
+            requestAnimationFrame(loop);
         }
-
-        function draw() {
-            ctx.clearRect(0, 0, width, height);
-            player.trail.forEach((pos, i) => { ctx.fillStyle = `rgba(0, 242, 255, ${i/15})`; ctx.fillRect(pos.x, pos.y, 25, 25); });
-            ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
-            ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, 25, 25);
-            ctx.shadowColor = "#ff007b"; ctx.fillStyle = "#ff007b";
-            obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
-            ctx.shadowBlur = 0;
-        }
-
-        function animate() { update(); draw(); requestAnimationFrame(animate); }
     </script>
 </body>
 </html>

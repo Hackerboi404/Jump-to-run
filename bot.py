@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppI
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # Bot Token yahan dalein
-TOKEN = 'YOUR_BOT_TOKEN_HERE'
+TOKEN = '8716842152:AAE_3JlzLZjr_Vgi9_Hax6rJBgmKAv5w0eQ'
 # Game URL (Jahan index.html host hai)
 GAME_URL = 'https://hackerboi404.github.io/Jump-to-run/'
 

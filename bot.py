@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Messa
 # Bot Token yahan dalein
 TOKEN = 'YOUR_BOT_TOKEN_HERE'
 # Game URL (Jahan index.html host hai)
-GAME_URL = 'https://your-hosted-game.com/index.html'
+GAME_URL = 'https://hackerboi404.github.io/Jump-to-run/'
 
 # Database Setup
 def init_db():

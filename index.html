@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Archery Leaderboard</title>
+    <title>Neon Archery Leaderboard Fix</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #050508; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
@@ -11,7 +11,7 @@
         canvas { display: block; background: radial-gradient(circle, #16162d 0%, #050508 100%); }
         #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         .glass-panel { position: absolute; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); top: 15px; left: 15px; color: #00f2ff; font-weight: bold; font-size: 18px; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.93); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; pointer-events: auto; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; pointer-events: auto; }
         h1 { color: #ff007b; font-size: 32px; margin: 0; text-shadow: 0 0 20px #ff007b; }
         .btn-restart { border: none; padding: 12px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; background: linear-gradient(45deg, #00f2ff, #0062ff); margin-top: 15px; box-shadow: 0 0 15px rgba(0, 242, 255, 0.4); }
         
@@ -31,12 +31,12 @@
             <div class="glass-panel" id="score-board">SCORE: 0</div>
             <div id="overlay">
                 <h1>GAME OVER</h1>
-                <button class="btn-restart" onclick="resetGame()">PLAY AGAIN</button>
+                <button class="btn-restart" onclick="resetGame()">RESTART</button>
                 
                 <div id="leaderboard-box">
-                    <div class="lb-title">GLOBAL TOP 5</div>
+                    <div class="lb-title">TOP 5 PLAYERS</div>
                     <div id="leaderboard-list">
-                        <div id="loading-text">Fetching scores...</div>
+                        <div id="loading-text">Loading Leaderboard...</div>
                     </div>
                 </div>
             </div>
@@ -45,9 +45,9 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        
-        // ZAROORI: Yahan apna actual Render URL dalein (e.g., https://my-bot.onrender.com)
-        // Bina /api/leaderboard ke, sirf base URL.
+        tg.expand(); // Game ko poora screen bada kar dega
+
+        // YAHAN APNA RENDER URL DALEIN (Iske bina score nahi dikhega)
         const RENDER_URL = "https://jump-to-run.onrender.com"; 
         const API_URL = `${RENDER_URL.replace(/\/$/, "")}/api/leaderboard`;
 
@@ -67,41 +67,26 @@
 
         async function fetchLeaderboard() {
             const list = document.getElementById("leaderboard-list");
-            
-            // Agar placeholder URL hai toh fetch na karein
             if (RENDER_URL.includes("your-bot-name")) {
-                list.innerHTML = "<div id='loading-text'>Config Error: Update RENDER_URL</div>";
+                list.innerHTML = "<div id='loading-text'>Error: Update RENDER_URL in code!</div>";
                 return;
             }
-
             try {
-                // Fetch with a timeout to prevent long hangs
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-                const res = await fetch(API_URL, { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-                
+                const res = await fetch(API_URL);
                 const data = await res.json();
                 list.innerHTML = "";
-                
                 if(!data || data.length === 0) {
-                    list.innerHTML = "<div id='loading-text'>No scores yet!</div>";
+                    list.innerHTML = "<div id='loading-text'>No scores yet! Play in DM first.</div>";
                     return;
                 }
-
                 data.forEach((entry, i) => {
-                    list.innerHTML += `
-                        <div class="lb-row">
-                            <span class="lb-name">${i+1}. ${entry.name}</span>
-                            <span class="lb-score">${entry.score}</span>
-                        </div>`;
+                    list.innerHTML += `<div class="lb-row">
+                        <span class="lb-name">${i+1}. ${entry.name}</span>
+                        <span class="lb-score">${entry.score}</span>
+                    </div>`;
                 });
             } catch (e) {
-                list.innerHTML = "<div id='loading-text'>Leaderboard unavailable</div>";
-                console.error("Leaderboard Fetch Error:", e);
+                list.innerHTML = "<div id='loading-text'>Leaderboard Offline</div>";
             }
         }
 
@@ -119,16 +104,13 @@
             gameActive = false;
             document.getElementById("overlay").style.display = "flex";
             
-            // Score Telegram ko bhej rahe hain
+            // Score saving logic for Telegram DM
             try {
-                const data = JSON.stringify({ score: score });
-                tg.sendData(data); 
-            } catch (e) {
-                console.error("Telegram sendData error:", e);
-            }
+                tg.sendData(JSON.stringify({ score: score }));
+            } catch(e) { console.log("Group chat: sendData not supported"); }
 
-            // Leaderboard refresh
-            setTimeout(fetchLeaderboard, 800); 
+            // Leaderboard update
+            setTimeout(fetchLeaderboard, 500);
         }
 
         function update() {
@@ -148,7 +130,6 @@
                 if (player.x < o.x + o.w && player.x + 25 > o.x && player.y < o.y + o.h && player.y + 25 > o.y) gameOver();
                 if (!o.passed && o.x + o.w < player.x) { 
                     o.passed = true; 
-                    // Score logic fix: Each pair of obstacles counts as 1 point
                     if(obstacles.indexOf(o) % 2 === 0) { 
                         score++; 
                         document.getElementById("score-board").innerText = `SCORE: ${score}`; 

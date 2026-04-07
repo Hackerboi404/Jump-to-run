@@ -3,79 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Archery TG Pro</title>
+    <title>Neon Archery Leaderboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            margin: 0; padding: 0; overflow: hidden;
-            background-color: #050508;
-            font-family: 'Segoe UI', sans-serif;
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; touch-action: none;
-        }
-
-        #game-container {
-            position: relative;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        canvas {
-            display: block;
-            background: radial-gradient(circle, #16162d 0%, #050508 100%);
-        }
-
-        #ui {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-        }
-
-        .glass-panel {
-            position: absolute;
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(15px);
-            padding: 10px 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            top: 15px; left: 15px;
-            color: #00f2ff;
-            font-weight: bold; font-size: 18px;
-            text-shadow: 0 0 8px #00f2ff;
-        }
-
-        #overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: none; flex-direction: column;
-            justify-content: center; align-items: center;
-            z-index: 100; pointer-events: auto;
-        }
-
-        h1 {
-            color: #ff007b; font-size: 42px; margin: 0;
-            text-shadow: 0 0 20px #ff007b;
-        }
-
-        #final-score { color: white; font-size: 20px; margin: 10px 0 25px 0; }
-
-        .btn-restart {
-            border: none; padding: 15px 40px;
-            color: white; font-size: 18px; font-weight: bold;
-            border-radius: 50px; cursor: pointer;
-            background: linear-gradient(45deg, #00f2ff, #0062ff);
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
-            transition: transform 0.1s;
-        }
-
-        .btn-restart:active { transform: scale(0.9); }
-
-        #save-indicator {
-            position: absolute;
-            bottom: 20px;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 12px;
-            letter-spacing: 1px;
-        }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #050508; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
+        #game-container { position: relative; border-radius: 12px; overflow: hidden; }
+        canvas { display: block; background: radial-gradient(circle, #16162d 0%, #050508 100%); }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .glass-panel { position: absolute; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); top: 15px; left: 15px; color: #00f2ff; font-weight: bold; font-size: 18px; }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.93); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; pointer-events: auto; }
+        h1 { color: #ff007b; font-size: 32px; margin: 0; text-shadow: 0 0 20px #ff007b; }
+        .btn-restart { border: none; padding: 12px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; background: linear-gradient(45deg, #00f2ff, #0062ff); margin-top: 15px; box-shadow: 0 0 15px rgba(0, 242, 255, 0.4); }
+        
+        #leaderboard-box { width: 85%; margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; color: white; }
+        .lb-title { color: #00f2ff; font-size: 12px; letter-spacing: 3px; text-align: center; margin-bottom: 15px; font-weight: bold; }
+        .lb-row { display: flex; justify-content: space-between; font-size: 15px; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); margin-bottom: 4px; border-radius: 4px; }
+        .lb-name { opacity: 0.9; }
+        .lb-score { color: #ff007b; font-weight: bold; }
+        #loading-text { text-align: center; font-size: 14px; opacity: 0.5; }
     </style>
 </head>
 <body onload="initGame()">
@@ -84,164 +29,146 @@
         <canvas id="gameCanvas"></canvas>
         <div id="ui">
             <div class="glass-panel" id="score-board">SCORE: 0</div>
-            
             <div id="overlay">
-                <h1>CRASHED!</h1>
-                <div id="final-score">Your Score: 0</div>
+                <h1>GAME OVER</h1>
                 <button class="btn-restart" onclick="resetGame()">PLAY AGAIN</button>
-                <div id="save-indicator">Score auto-saved to Telegram</div>
+                
+                <div id="leaderboard-box">
+                    <div class="lb-title">GLOBAL TOP 5</div>
+                    <div id="leaderboard-list">
+                        <div id="loading-text">Fetching scores...</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand();
+        
+        // ZAROORI: Yahan apna actual Render URL dalein (e.g., https://my-bot.onrender.com)
+        // Bina /api/leaderboard ke, sirf base URL.
+        const RENDER_URL = "https://your-bot-name.onrender.com"; 
+        const API_URL = `${RENDER_URL.replace(/\/$/, "")}/api/leaderboard`;
 
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-        
-        let width, height, player, obstacles, particles, score, gameActive, frameCount;
+        let width, height, player, obstacles, score, gameActive, frameCount;
 
         function initGame() {
             width = Math.min(window.innerWidth, 400);
             height = Math.min(window.innerHeight, 650);
-            canvas.width = width;
-            canvas.height = height;
-
+            canvas.width = width; canvas.height = height;
             resetGame();
-            
+            canvas.addEventListener("touchstart", (e) => { e.preventDefault(); if(gameActive) jump(); }, {passive: false});
             canvas.addEventListener("mousedown", () => { if(gameActive) jump(); });
-            canvas.addEventListener("touchstart", (e) => { 
-                e.preventDefault(); 
-                if(gameActive) jump(); 
-            }, {passive: false});
-
             animate();
         }
 
+        async function fetchLeaderboard() {
+            const list = document.getElementById("leaderboard-list");
+            
+            // Agar placeholder URL hai toh fetch na karein
+            if (RENDER_URL.includes("your-bot-name")) {
+                list.innerHTML = "<div id='loading-text'>Config Error: Update RENDER_URL</div>";
+                return;
+            }
+
+            try {
+                // Fetch with a timeout to prevent long hangs
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const res = await fetch(API_URL, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                
+                const data = await res.json();
+                list.innerHTML = "";
+                
+                if(!data || data.length === 0) {
+                    list.innerHTML = "<div id='loading-text'>No scores yet!</div>";
+                    return;
+                }
+
+                data.forEach((entry, i) => {
+                    list.innerHTML += `
+                        <div class="lb-row">
+                            <span class="lb-name">${i+1}. ${entry.name}</span>
+                            <span class="lb-score">${entry.score}</span>
+                        </div>`;
+                });
+            } catch (e) {
+                list.innerHTML = "<div id='loading-text'>Leaderboard unavailable</div>";
+                console.error("Leaderboard Fetch Error:", e);
+            }
+        }
+
         function resetGame() {
-            player = {
-                x: 60, y: height / 2,
-                w: 25, h: 25,
-                velocity: 0,
-                trail: []
-            };
-            obstacles = [];
-            particles = [];
-            score = 0;
-            frameCount = 0;
-            gameActive = true;
+            player = { x: 60, y: height/2, w: 25, h: 25, velocity: 0, trail: [] };
+            obstacles = []; score = 0; frameCount = 0; gameActive = true;
             document.getElementById("overlay").style.display = "none";
             document.getElementById("score-board").innerText = `SCORE: 0`;
         }
 
-        function jump() {
-            player.velocity = -4.8;
-            createParticles(player.x, player.y + 12, "#00f2ff", 8);
-        }
-
-        function createParticles(x, y, color, count) {
-            for (let i = 0; i < count; i++) {
-                particles.push({
-                    x, y,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    size: Math.random() * 3 + 1,
-                    life: 1.0,
-                    color: color
-                });
-            }
-        }
+        function jump() { player.velocity = -4.8; }
 
         function gameOver() {
             if(!gameActive) return;
             gameActive = false;
-            
             document.getElementById("overlay").style.display = "flex";
-            document.getElementById("final-score").innerText = `Your Score: ${score}`;
-            createParticles(player.x, player.y, "#ff007b", 25);
+            
+            // Score Telegram ko bhej rahe hain
+            try {
+                const data = JSON.stringify({ score: score });
+                tg.sendData(data); 
+            } catch (e) {
+                console.error("Telegram sendData error:", e);
+            }
 
-            // AUTO BACKGROUND SAVE TO TELEGRAM
-            // Har baar out hone pe score apne aap chala jayega
-            const data = JSON.stringify({ score: score });
-            tg.sendData(data);
+            // Leaderboard refresh
+            setTimeout(fetchLeaderboard, 800); 
         }
 
         function update() {
             if (!gameActive) return;
-
-            frameCount++;
-            player.velocity += 0.22;
-            player.y += player.velocity;
-
+            frameCount++; player.velocity += 0.22; player.y += player.velocity;
             player.trail.push({x: player.x, y: player.y});
             if (player.trail.length > 8) player.trail.shift();
-
             if (player.y + player.h > height || player.y < 0) gameOver();
-
             if (frameCount % 90 === 0) {
                 let gap = 170;
                 let h = Math.floor(Math.random() * (height - gap - 120)) + 60;
                 obstacles.push({ x: width, y: 0, w: 45, h: h, passed: false });
-                obstacles.push({ x: width, y: h + gap, w: 45, h: height - h - gap });
+                obstacles.push({ x: width, y: h + gap, w: 45, h: height-h-gap });
             }
-
-            obstacles.forEach(obs => {
-                obs.x -= 3.5;
-                if (player.x < obs.x + obs.w && player.x + player.w > obs.x &&
-                    player.y < obs.y + obs.h && player.y + player.h > obs.y) {
-                    gameOver();
-                }
-                if (!obs.passed && obs.x + obs.w < player.x) {
-                    obs.passed = true;
-                    if (obstacles.indexOf(obs) % 2 === 0) {
-                        score++;
-                        document.getElementById("score-board").innerText = `SCORE: ${score}`;
-                    }
+            obstacles.forEach(o => {
+                o.x -= 3.5;
+                if (player.x < o.x + o.w && player.x + 25 > o.x && player.y < o.y + o.h && player.y + 25 > o.y) gameOver();
+                if (!o.passed && o.x + o.w < player.x) { 
+                    o.passed = true; 
+                    // Score logic fix: Each pair of obstacles counts as 1 point
+                    if(obstacles.indexOf(o) % 2 === 0) { 
+                        score++; 
+                        document.getElementById("score-board").innerText = `SCORE: ${score}`; 
+                    } 
                 }
             });
-
             obstacles = obstacles.filter(o => o.x + o.w > 0);
-            particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.025; });
-            particles = particles.filter(p => p.life > 0);
         }
 
         function draw() {
             ctx.clearRect(0, 0, width, height);
-            
-            particles.forEach(p => {
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-            });
-            ctx.globalAlpha = 1;
-
-            // Neon Trail
-            player.trail.forEach((pos, i) => {
-                ctx.fillStyle = `rgba(0, 242, 255, ${i / 15})`;
-                ctx.fillRect(pos.x, pos.y, player.w, player.h);
-            });
-
-            // Glowing Box Player
+            player.trail.forEach((pos, i) => { ctx.fillStyle = `rgba(0, 242, 255, ${i/15})`; ctx.fillRect(pos.x, pos.y, 25, 25); });
             ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
-            ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, player.w, player.h);
-            ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 2;
-            ctx.strokeRect(player.x, player.y, player.w, player.h);
-            
-            // Glowing Obstacles
-            ctx.shadowBlur = 15; ctx.shadowColor = "#ff007b";
-            obstacles.forEach(obs => {
-                ctx.fillStyle = "#ff007b";
-                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-            });
+            ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, 25, 25);
+            ctx.shadowColor = "#ff007b"; ctx.fillStyle = "#ff007b";
+            obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
             ctx.shadowBlur = 0;
         }
 
-        function animate() {
-            update(); draw();
-            requestAnimationFrame(animate);
-        }
+        function animate() { update(); draw(); requestAnimationFrame(animate); }
     </script>
 </body>
 </html>

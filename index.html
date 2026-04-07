@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Archery TG Pro</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #050508;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: radial-gradient(circle, #16162d 0%, #050508 100%);
+        }
+
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            top: 15px; left: 15px;
+            color: #00f2ff;
+            font-weight: bold; font-size: 18px;
+            text-shadow: 0 0 8px #00f2ff;
+        }
+
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 100; pointer-events: auto;
+        }
+
+        h1 {
+            color: #ff007b; font-size: 42px; margin: 0;
+            text-shadow: 0 0 20px #ff007b;
+        }
+
+        #final-score { color: white; font-size: 20px; margin: 10px 0 25px 0; }
+
+        .btn-restart {
+            border: none; padding: 15px 40px;
+            color: white; font-size: 18px; font-weight: bold;
+            border-radius: 50px; cursor: pointer;
+            background: linear-gradient(45deg, #00f2ff, #0062ff);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+            transition: transform 0.1s;
+        }
+
+        .btn-restart:active { transform: scale(0.9); }
+
+        #save-indicator {
+            position: absolute;
+            bottom: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body onload="initGame()">
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div class="glass-panel" id="score-board">SCORE: 0</div>
+            
+            <div id="overlay">
+                <h1>CRASHED!</h1>
+                <div id="final-score">Your Score: 0</div>
+                <button class="btn-restart" onclick="resetGame()">PLAY AGAIN</button>
+                <div id="save-indicator">Score auto-saved to Telegram</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        let width, height, player, obstacles, particles, score, gameActive, frameCount;
+
+        function initGame() {
+            width = Math.min(window.innerWidth, 400);
+            height = Math.min(window.innerHeight, 650);
+            canvas.width = width;
+            canvas.height = height;
+
+            resetGame();
+            
+            canvas.addEventListener("mousedown", () => { if(gameActive) jump(); });
+            canvas.addEventListener("touchstart", (e) => { 
+                e.preventDefault(); 
+                if(gameActive) jump(); 
+            }, {passive: false});
+
+            animate();
+        }
+
+        function resetGame() {
+            player = {
+                x: 60, y: height / 2,
+                w: 25, h: 25,
+                velocity: 0,
+                trail: []
+            };
+            obstacles = [];
+            particles = [];
+            score = 0;
+            frameCount = 0;
+            gameActive = true;
+            document.getElementById("overlay").style.display = "none";
+            document.getElementById("score-board").innerText = `SCORE: 0`;
+        }
+
+        function jump() {
+            player.velocity = -4.8;
+            createParticles(player.x, player.y + 12, "#00f2ff", 8);
+        }
+
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    size: Math.random() * 3 + 1,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function gameOver() {
+            if(!gameActive) return;
+            gameActive = false;
+            
+            document.getElementById("overlay").style.display = "flex";
+            document.getElementById("final-score").innerText = `Your Score: ${score}`;
+            createParticles(player.x, player.y, "#ff007b", 25);
+
+            // AUTO BACKGROUND SAVE TO TELEGRAM
+            // Har baar out hone pe score apne aap chala jayega
+            const data = JSON.stringify({ score: score });
+            tg.sendData(data);
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            frameCount++;
+            player.velocity += 0.22;
+            player.y += player.velocity;
+
+            player.trail.push({x: player.x, y: player.y});
+            if (player.trail.length > 8) player.trail.shift();
+
+            if (player.y + player.h > height || player.y < 0) gameOver();
+
+            if (frameCount % 90 === 0) {
+                let gap = 170;
+                let h = Math.floor(Math.random() * (height - gap - 120)) + 60;
+                obstacles.push({ x: width, y: 0, w: 45, h: h, passed: false });
+                obstacles.push({ x: width, y: h + gap, w: 45, h: height - h - gap });
+            }
+
+            obstacles.forEach(obs => {
+                obs.x -= 3.5;
+                if (player.x < obs.x + obs.w && player.x + player.w > obs.x &&
+                    player.y < obs.y + obs.h && player.y + player.h > obs.y) {
+                    gameOver();
+                }
+                if (!obs.passed && obs.x + obs.w < player.x) {
+                    obs.passed = true;
+                    if (obstacles.indexOf(obs) % 2 === 0) {
+                        score++;
+                        document.getElementById("score-board").innerText = `SCORE: ${score}`;
+                    }
+                }
+            });
+
+            obstacles = obstacles.filter(o => o.x + o.w > 0);
+            particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.025; });
+            particles = particles.filter(p => p.life > 0);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            // Neon Trail
+            player.trail.forEach((pos, i) => {
+                ctx.fillStyle = `rgba(0, 242, 255, ${i / 15})`;
+                ctx.fillRect(pos.x, pos.y, player.w, player.h);
+            });
+
+            // Glowing Box Player
+            ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
+            ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 2;
+            ctx.strokeRect(player.x, player.y, player.w, player.h);
+            
+            // Glowing Obstacles
+            ctx.shadowBlur = 15; ctx.shadowColor = "#ff007b";
+            obstacles.forEach(obs => {
+                ctx.fillStyle = "#ff007b";
+                ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        function animate() {
+            update(); draw();
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>

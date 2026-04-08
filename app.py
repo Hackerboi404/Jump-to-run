@@ -42,12 +42,14 @@ def get_lb():
     conn = sqlite3.connect("scores.db", check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("SELECT username, score FROM leaderboard ORDER BY score DESC LIMIT 10")
-    data = [{"name": r[0], "score": r[1]} for r in rows := cursor.fetchall()]
+    rows = cursor.fetchall() # FIX: Walrus operator hataya
     conn.close()
+    
+    # Simple list comprehension for data formatting
+    data = [{"name": r[0], "score": r[1]} for r in rows]
     return jsonify(data)
 
 async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Image jaisa button dene ke liye
     keyboard = [[InlineKeyboardButton("🎮 Play Neon Archery", web_app=WebAppInfo(url=GAME_URL))]]
     await update.message.reply_text("🔥 *CHALLENGE:* Kya aap Top 10 mein aa sakte hain?\nAbhi khelein aur apna score leaderboard par dekhein!", 
                                    reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")

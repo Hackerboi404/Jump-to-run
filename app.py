@@ -48,7 +48,7 @@ def get_lb():
 
 async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Image jaisa button dene ke liye
-    keyboard = [[InlineKeyboardButton("🎮 Play Neon Dash", web_app=WebAppInfo(url=GAME_URL))]]
+    keyboard = [[InlineKeyboardButton("🎮 Play Neon Archery", web_app=WebAppInfo(url=GAME_URL))]]
     await update.message.reply_text("🔥 *CHALLENGE:* Kya aap Top 10 mein aa sakte hain?\nAbhi khelein aur apna score leaderboard par dekhein!", 
                                    reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 

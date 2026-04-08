@@ -3,27 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Archery Leaderboard</title>
+    <title>Neon Archery Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; background: #050508; color: white; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { margin: 0; background: #050508; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
         canvas { background: #0a0a0f; display: block; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .lb-box { width: 80%; margin-top: 20px; border-top: 1px solid #333; padding-top: 10px; }
-        .lb-row { display: flex; justify-content: space-between; padding: 5px; font-size: 14px; border-bottom: 1px solid #222; }
-        .btn { background: #00f2ff; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        
+        #overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(5,5,8,0.97); display: none; 
+            flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 100;
+        }
+
+        .big-score { font-size: 70px; font-weight: bold; color: white; margin-bottom: 20px; text-shadow: 0 0 20px #00f2ff; }
+
+        .lb-box { 
+            width: 85%; background: rgba(255,255,255,0.03); 
+            border-radius: 15px; padding: 10px 0; margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .lb-row { display: flex; justify-content: space-between; padding: 10px 20px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .lb-row:last-child { border-bottom: none; }
+        
+        /* Instant Restart Button */
+        .restart-btn { 
+            background: #00f2ff; border: none; width: 70px; height: 70px; 
+            border-radius: 50%; cursor: pointer; display: flex; 
+            justify-content: center; align-items: center;
+            box-shadow: 0 0 20px #00f2ff;
+        }
     </style>
 </head>
 <body onload="init()">
-    <div id="score" style="position:fixed; top:10px; left:10px; font-size:20px; color:#00f2ff;">SCORE: 0</div>
+    <div id="score-ui" style="position:fixed; top:30px; width:100%; text-align:center; font-size:40px; font-weight:bold; color:#00f2ff; text-shadow: 0 0 10px #00f2ff; pointer-events:none; z-index:5;">0</div>
+    
     <canvas id="c"></canvas>
+
     <div id="overlay">
-        <h1 style="color:#ff007b">GAME OVER</h1>
-        <button class="btn" onclick="location.reload()">RESTART</button>
+        <div style="color: #888; letter-spacing: 1px;">SCORE</div>
+        <div class="big-score" id="final-score-val">0</div>
+        
         <div class="lb-box">
-            <div style="color:#00f2ff; margin-bottom:10px;">TOP 5 RANKING</div>
-            <div id="lb-list">Loading...</div>
+            <div id="lb-list"><div style="color:#444; padding:10px;">Loading Rankings...</div></div>
         </div>
+
+        <button class="restart-btn" onclick="resetGame()">
+            <svg width="35" height="35" viewBox="0 0 24 24" fill="black"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+        </button>
     </div>
 
     <script>
@@ -31,71 +58,93 @@
         const RENDER_URL = "https://jump-to-run.onrender.com";
         const canvas = document.getElementById("c");
         const ctx = canvas.getContext("2d");
-        let score = 0, active = true, player, pipes = [], frame = 0;
+        
+        let score, active, player, pipes, frame, initialDelay = 120;
 
         function init() {
             canvas.width = Math.min(window.innerWidth, 400);
-            canvas.height = Math.min(window.innerHeight, 600);
-            player = { x: 50, y: canvas.height/2, v: 0 };
+            canvas.height = Math.min(window.innerHeight, 700);
             tg.expand();
-            loop();
+            resetGame();
+            animate();
         }
 
-        async function saveAndFetch() {
-            const user = tg.initDataUnsafe?.user || { id: 12345, first_name: "Tester" };
+        function resetGame() {
+            score = 0; active = true; frame = 0; pipes = [];
+            player = { x: 50, y: canvas.height/2, v: 0 };
+            document.getElementById("overlay").style.display = "none";
+            document.getElementById("score-ui").innerText = "0";
+        }
+
+        async function fetchLB() {
+            const user = tg.initDataUnsafe?.user || { id: 1, first_name: "Neon" };
+            const list = document.getElementById("lb-list");
             
-            // 1. Direct API Save (Fallback)
             try {
+                // Save
                 await fetch(`${RENDER_URL}/api/save_score`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: user.id, name: user.first_name, score: score })
                 });
-            } catch(e) {}
-
-            // 2. Fetch Leaderboard
-            try {
+                // Fetch
                 const res = await fetch(`${RENDER_URL}/api/leaderboard`);
                 const data = await res.json();
-                const list = document.getElementById("lb-list");
-                list.innerHTML = data.length ? "" : "No scores yet!";
-                data.forEach((u, i) => {
-                    list.innerHTML += `<div class="lb-row"><span>${i+1}. ${u.name}</span><span>${u.score}</span></div>`;
-                });
-            } catch(e) { document.getElementById("lb-list").innerHTML = "Leaderboard Error"; }
+                list.innerHTML = data.map((u, i) => `
+                    <div class="lb-row">
+                        <span><b style="color:#00f2ff">#${i+1}</b> ${u.name}</span>
+                        <span style="color:#ff007b; font-weight:bold;">${u.score}</span>
+                    </div>`).join('');
+            } catch(e) { list.innerHTML = "Leaderboard Offline"; }
         }
 
         function gameOver() {
+            if(!active) return;
             active = false;
+            document.getElementById("final-score-val").innerText = score;
             document.getElementById("overlay").style.display = "flex";
             try { tg.sendData(JSON.stringify({score: score})); } catch(e) {}
-            saveAndFetch();
+            fetchLB();
         }
 
-        function jump() { if(active) player.v = -4.5; }
-        window.addEventListener("mousedown", jump);
-        window.addEventListener("touchstart", (e) => { jump(); e.preventDefault(); });
+        window.addEventListener("mousedown", () => { if(active) player.v = -4.8; });
+        window.addEventListener("touchstart", (e) => { if(active) player.v = -4.8; e.preventDefault(); }, {passive: false});
 
-        function loop() {
-            if(!active) return;
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            player.v += 0.2; player.y += player.v;
-            if(player.y < 0 || player.y > canvas.height) gameOver();
-            ctx.fillStyle = "#00f2ff"; ctx.fillRect(player.x, player.y, 25, 25);
-            
-            if(frame++ % 100 === 0) {
-                let h = Math.random() * (canvas.height - 250) + 50;
-                pipes.push({ x: canvas.width, y: 0, w: 40, h: h, p: false });
-                pipes.push({ x: canvas.width, y: h + 150, w: 40, h: canvas.height });
+        function animate() {
+            if(active) {
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                player.v += 0.23; player.y += player.v;
+                if(player.y < 0 || player.y > canvas.height) gameOver();
+
+                // Animated Blue Neon Box
+                ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
+                ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 3;
+                ctx.strokeRect(player.x, player.y, 25, 25);
+                ctx.fillStyle = "rgba(0,242,255,0.15)";
+                ctx.fillRect(player.x, player.y, 25, 25);
+                ctx.shadowBlur = 0;
+
+                if(frame > initialDelay && frame % 100 === 0) {
+                    let h = Math.random() * (canvas.height - 300) + 100;
+                    pipes.push({ x: canvas.width, y: 0, w: 50, h: h, p: false });
+                    pipes.push({ x: canvas.width, y: h + 170, w: 50, h: canvas.height });
+                }
+                frame++;
+
+                pipes.forEach(p => {
+                    p.x -= 3.5;
+                    ctx.shadowBlur = 10; ctx.shadowColor = "#ff007b";
+                    ctx.fillStyle = "#ff007b"; ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.shadowBlur = 0;
+                    if(player.x < p.x + p.w && player.x + 25 > p.x && player.y < p.y + p.h && player.y + 25 > p.y) gameOver();
+                    if(!p.p && p.x + p.w < player.x) { 
+                        p.p = true; 
+                        if(pipes.indexOf(p) % 2 === 0) { score++; document.getElementById("score-ui").innerText = score; }
+                    }
+                });
+                pipes = pipes.filter(p => p.x > -60);
             }
-            pipes.forEach(p => {
-                p.x -= 3;
-                ctx.fillStyle = "#ff007b"; ctx.fillRect(p.x, p.y, p.w, p.h);
-                if(player.x < p.x + p.w && player.x + 25 > p.x && player.y < p.y + p.h && player.y + 25 > p.y) gameOver();
-                if(!p.p && p.x + p.w < player.x) { p.p = true; if(pipes.indexOf(p)%2===0) { score++; document.getElementById("score").innerText = "SCORE: " + score; } }
-            });
-            pipes = pipes.filter(p => p.x > -40);
-            requestAnimationFrame(loop);
+            requestAnimationFrame(animate);
         }
     </script>
 </body>

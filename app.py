@@ -10,7 +10,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Messa
 
 # ====== CONFIG ======
 TOKEN = "8716842152:AAE_3JlzLZjr_Vgi9_Hax6rJBgmKAv5w0eQ"
-GAME_URL = "https://hackerboi404.github.io/Jump-to-run/"
+GAME_URL = "https://hackerboi404.github.io/Jump-to-run"
 
 logging.basicConfig(level=logging.INFO)
 

@@ -41,7 +41,8 @@
             background: rgba(0, 0, 0, 0.9);
             display: none; flex-direction: column;
             justify-content: center; align-items: center;
-            z-index: 100; color: white;
+            z-index: 1000; color: white;
+            pointer-events: auto; /* Ensure events are captured */
         }
 
         h1 { color: #ff007b; font-size: 42px; margin: 0; text-shadow: 0 0 20px #ff007b; }
@@ -66,6 +67,8 @@
             background: linear-gradient(45deg, #00f2ff, #0062ff);
             box-shadow: 0 0 25px rgba(0, 242, 255, 0.5);
             transition: transform 0.1s;
+            z-index: 1001;
+            position: relative;
         }
         .btn-restart:active { transform: scale(0.9); }
         #sync-status { font-size: 11px; color: #555; margin-top: 15px; }
@@ -84,11 +87,12 @@
             <div id="leaderboard">
                 <div class="lb-title">TOP 5 CHAMPIONS</div>
                 <div id="lb-data">
-                    <!-- Leaderboard content -->
+                    <div style="text-align:center;padding:10px;color:#444;">Loading...</div>
                 </div>
             </div>
 
-            <button class="btn-restart" onclick="resetGame()">PLAY AGAIN</button>
+            <!-- Changed to a more robust listener -->
+            <button class="btn-restart" id="restartBtn">PLAY AGAIN</button>
             <div id="sync-status">Checking server...</div>
         </div>
     </div>
@@ -98,6 +102,8 @@
         const API_URL = "https://jump-to-run.onrender.com";
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const overlay = document.getElementById("overlay");
+        const restartBtn = document.getElementById("restartBtn");
         
         let width, height, player, obstacles, particles, score, active, frame;
 
@@ -108,6 +114,20 @@
             canvas.height = height;
             tg.expand();
             
+            // Explicit event listener for restart
+            restartBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resetGame();
+            });
+
+            // Alternative touch listener for mobile
+            restartBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                resetGame();
+            }, {passive: false});
+
             resetGame();
             animate();
         }
@@ -124,7 +144,7 @@
             score = 0;
             frame = 0;
             active = true;
-            document.getElementById("overlay").style.display = "none";
+            overlay.style.display = "none";
             document.getElementById("score-board").innerText = `SCORE: 0`;
         }
 
@@ -134,20 +154,31 @@
             status.innerText = "Syncing data...";
 
             try {
-                // Save current score
+                // Background save
                 fetch(`${API_URL}/api/save_score`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: user.id, name: user.first_name, score: score })
                 }).catch(() => {});
 
-                // Get Top 5
+                // Get Leaderboard
                 const res = await fetch(`${API_URL}/api/leaderboard`, { signal: AbortSignal.timeout(5000) });
                 if (res.ok) {
                     const data = await res.json();
-                    const top5 = data.sort((a, b) => b.score - a.score).slice(0, 5);
+                    // Keep unique users and take top 5
+                    const uniqueScores = {};
+                    data.forEach(item => {
+                        if(!uniqueScores[item.name] || uniqueScores[item.name] < item.score) {
+                            uniqueScores[item.name] = item.score;
+                        }
+                    });
                     
-                    document.getElementById("lb-data").innerHTML = top5.map((p, i) => `
+                    const sorted = Object.entries(uniqueScores)
+                        .map(([name, s]) => ({name, score: s}))
+                        .sort((a, b) => b.score - a.score)
+                        .slice(0, 5);
+                    
+                    document.getElementById("lb-data").innerHTML = sorted.map((p, i) => `
                         <div class="lb-row">
                             <span class="lb-name">${i+1}. ${p.name}</span>
                             <span class="lb-score">${p.score}</span>
@@ -157,17 +188,15 @@
                 }
             } catch (e) {
                 status.innerText = "Offline Mode";
-                document.getElementById("lb-data").innerHTML = "<div style='text-align:center;padding:10px;color:#444;'>Connecting to server...</div>";
             }
         }
 
         function gameOver() {
             if(!active) return;
             active = false;
-            document.getElementById("overlay").style.display = "flex";
+            overlay.style.display = "flex";
             document.getElementById("final-score").innerText = `Your Score: ${score}`;
             
-            // Explosion particles
             for(let i=0; i<20; i++) {
                 particles.push(createParticle(player.x, player.y, "#ff007b"));
             }
@@ -188,12 +217,12 @@
         }
 
         const jump = (e) => { 
+            // Only jump if game is active AND we didn't click the overlay
             if(active) {
                 player.velocity = -5.0;
-                // Add jump particles
                 for(let i=0; i<5; i++) particles.push(createParticle(player.x, player.y + 12, "#00f2ff"));
             }
-            if(e && e.cancelable) e.preventDefault();
+            if(active && e && e.cancelable) e.preventDefault();
         };
 
         window.addEventListener("touchstart", jump, {passive: false});
@@ -209,13 +238,11 @@
             player.velocity += 0.24;
             player.y += player.velocity;
 
-            // Trail logic
             player.trail.push({x: player.x, y: player.y});
             if (player.trail.length > 10) player.trail.shift();
 
             if (player.y + player.h > height || player.y < 0) gameOver();
 
-            // Obstacle spawning
             if (frame % 90 === 0) {
                 let gap = 180;
                 let h = Math.floor(Math.random() * (height - gap - 200)) + 100;
@@ -246,7 +273,6 @@
         function draw() {
             ctx.clearRect(0, 0, width, height);
             
-            // Particles
             particles.forEach(p => {
                 ctx.globalAlpha = p.life;
                 ctx.fillStyle = p.color;
@@ -254,19 +280,16 @@
             });
             ctx.globalAlpha = 1;
 
-            // Neon Trail
             player.trail.forEach((pos, i) => {
                 ctx.fillStyle = `rgba(0, 242, 255, ${i / 20})`;
                 ctx.fillRect(pos.x, pos.y, player.w, player.h);
             });
 
-            // Player
             ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
             ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, player.w, player.h);
             ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 2;
             ctx.strokeRect(player.x, player.y, player.w, player.h);
             
-            // Obstacles
             ctx.shadowBlur = 15; ctx.shadowColor = "#ff007b";
             obstacles.forEach(obs => {
                 ctx.fillStyle = "#ff007b";

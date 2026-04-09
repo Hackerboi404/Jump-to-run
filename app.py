@@ -7,11 +7,11 @@ from flask_cors import CORS
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = "8716842152:AAE_3JlzLZjr_Vgi9_Hax6rJBgmKAv5w0eQ"
+TOKEN = "8198068311:AAG7ywDzEd6LkjixwzqDS3S0RS2ExHBK3rA"
 GAME_URL = "https://hackerboi404.github.io/Jump-to-run/"
 
 # 🔥 IMPORTANT: apna Telegram user ID daalo
-ADMIN_ID = 8389404866  
+ADMIN_ID = 8325091639  
 
 logging.basicConfig(level=logging.INFO)
 

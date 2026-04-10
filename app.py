@@ -1,12 +1,14 @@
 import os
 import random
-import asyncio
+import logging
 from flask import Flask
 from threading import Thread
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-# --- Flask Server (Render Support) ---
+# Logging setup taaki Render logs mein error dikhe
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
 app = Flask('')
 
 @app.route('/')
@@ -17,89 +19,92 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# --- Bot Logic ---
 TOKEN = os.environ.get('BOT_TOKEN')
 roasting_tasks = {}
 
 async def get_random_roast():
     try:
+        # Check if file exists
         if not os.path.exists("roast.txt"):
-            return "Bhai, roast.txt file toh bana le pehle!"
+            return "Bhai, 'roast.txt' file nahi mili GitHub pe!"
+        
         with open("roast.txt", "r", encoding="utf-8") as f:
             lines = [line.strip() for line in f.readlines() if line.strip()]
-            return random.choice(lines) if lines else "Roast list khali hai!"
+            
+        if not lines:
+            return "Roast list khali hai, kuch toh likh usme!"
+            
+        return random.choice(lines)
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"File reading error: {str(e)}"
 
-# Welcome Message Function
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "👋 **Arey Welcome Bhai!**\n\n"
-        "Main taiyar hoon doston ki bezzati karne ke liye. 😂\n\n"
-        "Commands:\n"
-        "🚀 `/roast @username` - Roasting shuru karne ke liye\n"
-        "🛑 `/stop` - Reham khane ke liye (Stop)"
-    )
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
-
-async def roasting_loop(context: ContextTypes.DEFAULT_TYPE):
+# Roast function jo baar baar chalega
+async def roasting_callback(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
-    chat_id = job.chat_id
-    target_user = job.data['target']
-    
     message = await get_random_roast()
-    final_text = f"Oye {target_user}, {message} 💀"
+    target = job.data['target']
     
-    await context.bot.send_message(chat_id=chat_id, text=final_text)
+    try:
+        await context.bot.send_message(chat_id=job.chat_id, text=f"{target} {message}")
+    except Exception as e:
+        logging.error(f"Failed to send roast: {e}")
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Bot chalu hai! `/roast @username` try kar.")
 
 async def start_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     if not context.args:
-        await update.message.reply_text("❌ Username toh daal! Example: `/roast @dost`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Kisko pelna hai? `/roast @username` likho.")
         return
 
     target_user = context.args[0]
     
-    # Instant Confirmation
-    await update.message.reply_text(f"🔥 Mission Start! Ab {target_user} ki waat lagegi har 50 seconds mein.")
-
-    # Purana task hatayein agar koi hai
+    # 1. Purana task remove karo
     if chat_id in roasting_tasks:
-        roasting_tasks[chat_id].schedule_removal()
+        current_job = roasting_tasks.pop(chat_id)
+        current_job.schedule_removal()
 
-    # Naya job jo turant start ho (first=0)
+    # 2. Check if JobQueue is available
+    if not context.job_queue:
+        await update.message.reply_text("❌ JobQueue error! Bot setup mein dikkat hai.")
+        return
+
+    # 3. Naya Job schedule karo
     new_job = context.job_queue.run_repeating(
-        roasting_loop, 
+        roasting_callback, 
         interval=50, 
-        first=0, # Isse pehla roast turant jayega
+        first=1, # 1 second baad pehla roast
         chat_id=chat_id, 
         data={'target': target_user}
     )
     
     roasting_tasks[chat_id] = new_job
+    await update.message.reply_text(f"🔥 Done! {target_user} ki roasting har 50s mein shuru.")
 
 async def stop_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id in roasting_tasks:
-        roasting_tasks[chat_id].schedule_removal()
-        del roasting_tasks[chat_id]
-        await update.message.reply_text("Theek hai, thoda saans lene do usse. Roasting stopped. ✅")
+        job = roasting_tasks.pop(chat_id)
+        job.schedule_removal()
+        await update.message.reply_text("✅ Roasting rok di gayi hai.")
     else:
-        await update.message.reply_text("Abhi toh koi roasting ho hi nahi rahi.")
+        await update.message.reply_text("Koyi active roasting nahi mili.")
 
 def main():
+    # Flask in background
     Thread(target=run_flask).start()
 
-    bot_app = ApplicationBuilder().token(TOKEN).build()
+    # Build application with JobQueue enabled
+    application = ApplicationBuilder().token(TOKEN).build()
     
     # Handlers
-    bot_app.add_handler(CommandHandler("start", start_command))
-    bot_app.add_handler(CommandHandler("roast", start_roast))
-    bot_app.add_handler(CommandHandler("stop", stop_roast))
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("roast", start_roast))
+    application.add_handler(CommandHandler("stop", stop_roast))
     
-    print("Bot is running...")
-    bot_app.run_polling()
+    application.run_polling()
 
 if __name__ == '__main__':
     main()

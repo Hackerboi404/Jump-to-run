@@ -1,125 +1,76 @@
-import logging
-import sqlite3
 import os
-import threading
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import random
+import asyncio
+from flask import Flask
+from threading import Thread
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-TOKEN = "8198068311:AAG7ywDzEd6LkjixwzqDS3S0RS2ExHBK3rA"
-GAME_URL = "https://hackerboi404.github.io/Jump-to-run/"
+# --- Flask Server Setup ---
+app = Flask('')
 
-# 🔥 IMPORTANT: apna Telegram user ID daalo
-ADMIN_ID = 8325091639  
+@app.route('/')
+def home():
+    return "Bot is alive!"
 
-logging.basicConfig(level=logging.INFO)
+def run_flask():
+    # Render automatically sets the PORT environment variable
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
-def init_db():
-    conn = sqlite3.connect("scores.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leaderboard (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            score INTEGER
-        )
-    """)
-    conn.commit()
-    conn.close()
+# --- Telegram Bot Logic ---
+TOKEN = os.environ.get('BOT_TOKEN') # Render environment variables se uthayega
+roasting_tasks = {}
 
-app_flask = Flask(__name__)
-CORS(app_flask)
+async def get_random_roast():
+    try:
+        with open("roast.txt", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            return random.choice(lines).strip() if lines else "Roast file khali hai!"
+    except FileNotFoundError:
+        return "roast.txt file nahi mili!"
 
-@app_flask.route('/api/save_score', methods=['POST'])
-def save_score():
-    data = request.json
-    uid, name, score = data.get("user_id"), data.get("name"), data.get("score")
+async def roasting_loop(context: ContextTypes.DEFAULT_TYPE):
+    job = context.job
+    chat_id = job.chat_id
+    target_user = job.data['target']
+    message = await get_random_roast()
+    await context.bot.send_message(chat_id=chat_id, text=f"Hey @{target_user.replace('@', '')}, {message}")
 
-    if uid:
-        conn = sqlite3.connect("scores.db", check_same_thread=False)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT score FROM leaderboard WHERE user_id = ?", (uid,))
-        row = cursor.fetchone()
-
-        if not row or int(score) > int(row[0]):
-            cursor.execute(
-                "INSERT OR REPLACE INTO leaderboard VALUES (?, ?, ?)",
-                (uid, name, score)
-            )
-            conn.commit()
-
-        conn.close()
-        return jsonify({"status": "success"})
-
-    return jsonify({"status": "error"}), 400
-
-
-@app_flask.route('/api/leaderboard')
-def get_lb():
-    conn = sqlite3.connect("scores.db", check_same_thread=False)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT username, score 
-        FROM leaderboard 
-        ORDER BY score DESC 
-        LIMIT 5
-    """)
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return jsonify([{"name": r[0], "score": r[1]} for r in rows])
-
-
-# 🎮 GAME COMMAND
-async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_type = update.effective_chat.type
-
-    if chat_type == "private":
-        keyboard = [[InlineKeyboardButton("🎮 PLAY", web_app=WebAppInfo(url=GAME_URL))]]
-    else:
-        keyboard = [[InlineKeyboardButton("🎮 PLAY", url=GAME_URL)]]
-
-    await update.message.reply_text(
-        "🎮 Use button to play!",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-
-# 🔥 ADMIN RESET COMMAND
-async def reset_lb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if user_id != ADMIN_ID:
-        await update.message.reply_text("❌ You are not allowed!")
+async def start_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not context.args:
+        await update.message.reply_text("Usage: /roast @username")
         return
+    
+    target_user = context.args[0]
+    if chat_id in roasting_tasks:
+        roasting_tasks[chat_id].schedule_removal()
 
-    conn = sqlite3.connect("scores.db")
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM leaderboard")
-    conn.commit()
-    conn.close()
+    new_job = context.job_queue.run_repeating(
+        roasting_loop, interval=50, first=1, chat_id=chat_id, data={'target': target_user}
+    )
+    roasting_tasks[chat_id] = new_job
+    await update.message.reply_text(f"Mission Started! 😈 Target: {target_user}")
 
-    await update.message.reply_text("✅ Leaderboard reset ho gaya!")
+async def stop_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id in roasting_tasks:
+        roasting_tasks[chat_id].schedule_removal()
+        del roasting_tasks[chat_id]
+        await update.message.reply_text("Theek hai, roast rok diya. ✅")
 
+def main():
+    # Flask ko background thread mein start karein
+    Thread(target=run_flask).start()
 
-if __name__ == "__main__":
-    init_db()
-
+    # Bot start karein
     bot_app = ApplicationBuilder().token(TOKEN).build()
-
-    bot_app.add_handler(CommandHandler("game", game_command))
-    bot_app.add_handler(CommandHandler("resetlb", reset_lb))  # 🔥 added
-
-    threading.Thread(
-        target=lambda: app_flask.run(
-            host='0.0.0.0',
-            port=int(os.environ.get("PORT", 10000))
-        ),
-        daemon=True
-    ).start()
-
+    bot_app.add_handler(CommandHandler("roast", start_roast))
+    bot_app.add_handler(CommandHandler("stop", stop_roast))
+    
+    print("Bot is running...")
     bot_app.run_polling()
+
+if __name__ == '__main__':
+    main()

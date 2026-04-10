@@ -3,211 +3,213 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Archery Highscore</title>
+    <title>Neon Archery - Pro Leaderboard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             margin: 0; padding: 0; overflow: hidden;
             background-color: #050508;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             display: flex; justify-content: center; align-items: center;
-            height: 100vh; touch-action: none;
+            height: 100vh; touch-action: none; color: white;
         }
-        #game-container {
-            position: relative; width: 100%; height: 100%;
-            display: flex; justify-content: center; align-items: center;
-        }
+        #game-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; background: radial-gradient(circle, #16162d 0%, #050508 100%); }
 
-        canvas {
-            display: block;
-            background: radial-gradient(circle, #16162d 0%, #050508 100%);
-        }
-
-        /* SCORE UI */
+        /* UI ELEMENTS */
         #score-board {
             position: absolute; top: 20px; left: 20px;
             background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            padding: 10px 20px; border-radius: 12px;
+            backdrop-filter: blur(10px); padding: 8px 16px; border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            color: #00f2ff; font-weight: bold; font-size: 20px;
-            text-shadow: 0 0 8px #00f2ff; z-index: 10;
+            color: #00f2ff; font-weight: bold; font-size: 18px; z-index: 10;
         }
 
-        /* PREPARATION MESSAGE */
         #prep-msg {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #00f2ff; font-size: 32px; font-weight: bold;
-            text-shadow: 0 0 15px #00f2ff; z-index: 20;
-            display: none; text-align: center;
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            color: #00f2ff; font-size: 40px; font-weight: 900;
+            text-shadow: 0 0 20px #00f2ff; z-index: 20; display: none;
         }
 
         /* OVERLAY */
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: none; flex-direction: column;
-            justify-content: center; align-items: center;
-            z-index: 1000; color: white;
-            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.95); display: none; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 1000;
         }
 
-        h1 { color: #ff007b; font-size: 42px; margin: 0; text-shadow: 0 0 20px #ff007b; }
-        #final-score { font-size: 22px; margin: 10px 0; color: #fff; }
-
-        /* LEADERBOARD */
-        #leaderboard {
-            width: 85%; max-width: 320px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 15px; padding: 15px; margin: 20px 0;
+        .lb-card {
+            width: 90%; max-width: 340px; background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+            padding: 20px; margin: 20px 0;
         }
-        .lb-title { text-align: center; color: #00f2ff; font-weight: bold; margin-bottom: 10px; font-size: 14px; letter-spacing: 1px; }
-        .lb-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .lb-name { color: #ccc; font-size: 15px; }
-        .lb-score { color: #00f2ff; font-weight: bold; }
+
+        .lb-title { 
+            color: #fff; font-size: 18px; font-weight: bold; margin-bottom: 15px; 
+            text-align: left; display: flex; align-items: center;
+        }
+
+        .lb-row { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .lb-user { color: #aaa; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+        .lb-val { color: #00f2ff; font-weight: 800; font-family: monospace; }
 
         .btn-restart {
-            border: none; padding: 15px 50px;
-            color: white; font-size: 18px; font-weight: bold;
+            border: none; padding: 16px 60px; color: white; font-size: 16px; font-weight: bold;
             border-radius: 50px; cursor: pointer;
             background: linear-gradient(45deg, #00f2ff, #0062ff);
-            box-shadow: 0 0 25px rgba(0, 242, 255, 0.5);
-            transition: transform 0.1s;
-            z-index: 1001;
-            position: relative;
+            box-shadow: 0 5px 20px rgba(0, 242, 255, 0.3);
         }
-        .btn-restart:active { transform: scale(0.9); }
-        #sync-status { font-size: 11px; color: #555; margin-top: 15px; }
+        
+        .syncing-text { font-size: 10px; color: #444; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
-<body onload="init()">
+<body>
+
 <div id="game-container">
     <div id="score-board">SCORE: 0</div>
-    <div id="prep-msg">GET READY!</div>
+    <div id="prep-msg">3</div>
     <canvas id="gameCanvas"></canvas>
       
     <div id="overlay">
-        <h1>BOOM!</h1>
-        <div id="final-score">Your Score: 0</div>
+        <h1 style="color:#ff007b; margin:0; font-size:32px;">BOOM!</h1>
+        <div id="final-score" style="margin: 5px 0 15px; font-size: 18px; color: #888;">Score: 0</div>
           
-        <div id="leaderboard">
-            <div class="lb-title">TOP 5 CHAMPIONS</div>
+        <div class="lb-card">
+            <div class="lb-title">🏆 Top Players</div>
             <div id="lb-data">
-                <div style="text-align:center;padding:10px;color:#444;">Loading...</div>
+                <div style="text-align:center; padding:20px; color:#555;">Records load ho rahe hain...</div>
             </div>
         </div>
 
-        <button class="btn-restart" id="restartBtn">PLAY AGAIN</button>
-        <div id="sync-status">Checking server...</div>
+        <button class="btn-restart" id="restartBtn">KHELIE PHIR SE</button>
+        <div class="syncing-text" id="sync-status">Score chat ke saath sync ho gaya</div>
     </div>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
     const tg = window.Telegram.WebApp;
-    const API_URL = "https://jump-to-run.onrender.com";
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
     const overlay = document.getElementById("overlay");
     const restartBtn = document.getElementById("restartBtn");
     const prepMsg = document.getElementById("prep-msg");
-      
-    let width, height, player, obstacles, particles, score, active, frame, isPreparing;
 
-    function init() {
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'neon-archery-pro';
+    const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    
+    let width, height, player, obstacles, score, active, frame, isPreparing, db, currentUser;
+    let userName = "Guest Player", userId = "";
+
+    async function init() {
         width = Math.min(window.innerWidth, 500);
         height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = width; canvas.height = height;
+        
+        if (tg.initDataUnsafe?.user) {
+            userName = tg.initDataUnsafe.user.first_name || tg.initDataUnsafe.user.username;
+        }
+
+        try {
+            // Firebase Initialize
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Auth Logic: Custom Token priority then Anonymous
+            if (authToken) {
+                await signInWithCustomToken(auth, authToken);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            // Wait for auth to be ready
+            onAuthStateChanged(auth, (u) => {
+                if (u) {
+                    currentUser = u;
+                    userId = u.uid;
+                    // Start game only after auth
+                    restartBtn.onclick = resetGame;
+                    resetGame();
+                    animate();
+                }
+            });
+
+        } catch (err) {
+            console.error("Firebase init fail:", err);
+            // Fallback to start game anyway if offline
+            restartBtn.onclick = resetGame;
+            resetGame();
+            animate();
+        }
+
         tg.expand();
-          
-        restartBtn.addEventListener('click', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            resetGame();
-        });
-
-        restartBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            resetGame();
-        }, {passive: false});
-
-        resetGame();
-        animate();
+        tg.ready();
     }
 
     function resetGame() {
-        player = {
-            x: 60, y: height / 2,
-            w: 25, h: 25,
-            velocity: 0,
-            trail: []
-        };
-        obstacles = [];
-        particles = [];
-        score = 0;
-        frame = 0;
-        active = true;
-        isPreparing = true; // Timer start
+        player = { x: 60, y: height / 2, w: 25, h: 25, velocity: 0 };
+        obstacles = []; score = 0; frame = 0;
+        active = true; isPreparing = true;
         overlay.style.display = "none";
         prepMsg.style.display = "block";
         document.getElementById("score-board").innerText = `SCORE: 0`;
 
-        // 3 second preparation time
         let count = 3;
-        prepMsg.innerText = "READY? " + count;
+        prepMsg.innerText = count;
         let timer = setInterval(() => {
             count--;
-            if(count > 0) {
-                prepMsg.innerText = "READY? " + count;
-            } else {
+            if(count > 0) prepMsg.innerText = count;
+            else {
                 prepMsg.innerText = "GO!";
-                setTimeout(() => {
-                    prepMsg.style.display = "none";
-                    isPreparing = false; // Game starts now
-                }, 500);
+                setTimeout(() => { prepMsg.style.display = "none"; isPreparing = false; }, 500);
                 clearInterval(timer);
             }
         }, 1000);
     }
 
-    async function syncHighscores() {
-        const user = tg.initDataUnsafe?.user || { id: 12345, first_name: "Archer" };
-        const status = document.getElementById("sync-status");
-        status.innerText = "Syncing data...";
-
+    async function saveAndFetchScores() {
+        if (!currentUser || !db) return;
+        
+        // Rule: /artifacts/{appId}/public/data/{collectionName}
+        const publicCollection = collection(db, 'artifacts', appId, 'public', 'data', 'scores');
+        const userDoc = doc(db, 'artifacts', appId, 'public', 'data', 'scores', userId);
+        
         try {
-            // Send score to Chat (Telegram)
-            tg.sendData(JSON.stringify({ game: "archery", score: score, user: user.first_name }));
+            // Save current score
+            await setDoc(userDoc, {
+                name: userName,
+                score: score,
+                userId: userId,
+                timestamp: Date.now()
+            }, { merge: true });
 
-            // Background save to database
-            fetch(`${API_URL}/api/save_score`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: user.id, name: user.first_name, score: score, game: "archery" })
-            }).catch(() => {});
+            // Telegram update
+            tg.sendData(JSON.stringify({ score: score, user: userName }));
 
-            // Get Leaderboard
-            const res = await fetch(`${API_URL}/api/leaderboard`, { signal: AbortSignal.timeout(5000) });
-            if (res.ok) {
-                const data = await res.json();
-                
-                // Filter specifically for archery game
-                const filtered = data
-                    .filter(item => item.game === "archery")
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 5);
-                  
-                document.getElementById("lb-data").innerHTML = filtered.map((p, i) => `
-                    <div class="lb-row">
-                        <span class="lb-name">${i+1}. ${p.name}</span>
-                        <span class="lb-score">${p.score}</span>
-                    </div>
-                `).join('');
-                status.innerText = "Leaderboard Updated";
-            }
+            // Fetch scores from collection
+            const querySnapshot = await getDocs(publicCollection);
+            let allScores = [];
+            querySnapshot.forEach((doc) => allScores.push(doc.data()));
+            
+            const sorted = allScores.sort((a, b) => b.score - a.score).slice(0, 5);
+            
+            document.getElementById("lb-data").innerHTML = sorted.map((p, i) => `
+                <div class="lb-row">
+                    <span class="lb-user">${i+1}. ${p.name || 'Unknown'}</span>
+                    <span class="lb-val">${p.score}</span>
+                </div>
+            `).join('');
         } catch (e) {
-            status.innerText = "Offline Mode";
+            console.error("Firestore Error:", e);
+            document.getElementById("lb-data").innerHTML = "<center>Permission issue or Offline</center>";
         }
     }
 
@@ -215,32 +217,13 @@
         if(!active) return;
         active = false;
         overlay.style.display = "flex";
-        document.getElementById("final-score").innerText = `Your Score: ${score}`;
-          
-        for(let i=0; i<20; i++) {
-            particles.push(createParticle(player.x, player.y, "#ff007b"));
-        }
-          
+        document.getElementById("final-score").innerText = `Score: ${score}`;
         if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-        syncHighscores();
-    }
-
-    function createParticle(x, y, color) {
-        return {
-            x, y,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 0.5) * 8,
-            size: Math.random() * 4 + 1,
-            life: 1.0,
-            color: color
-        };
+        saveAndFetchScores();
     }
 
     const jump = (e) => {
-        if(active && !isPreparing) {
-            player.velocity = -5.0;
-            for(let i=0; i<5; i++) particles.push(createParticle(player.x, player.y + 12, "#00f2ff"));
-        }
+        if(active && !isPreparing) player.velocity = -5.5;
         if(active && e && e.cancelable) e.preventDefault();
     };
 
@@ -248,36 +231,22 @@
     window.addEventListener("mousedown", jump);
 
     function update() {
-        if (!active) {
-            particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.02; });
-            return;
-        }
-
-        if(isPreparing) return; // Don't move if preparing
-
+        if (!active || isPreparing) return;
         frame++;
-        player.velocity += 0.24;
+        player.velocity += 0.25;
         player.y += player.velocity;
-
-        player.trail.push({x: player.x, y: player.y});
-        if (player.trail.length > 10) player.trail.shift();
-
         if (player.y + player.h > height || player.y < 0) gameOver();
 
-        // Slightly delayed first obstacle for better experience
-        if (frame > 60 && frame % 90 === 0) {
-            let gap = 180;
-            let h = Math.floor(Math.random() * (height - gap - 200)) + 100;
+        if (frame > 60 && frame % 95 === 0) {
+            let gap = 180, h = Math.floor(Math.random() * (height - gap - 240)) + 120;
             obstacles.push({ x: width, y: 0, w: 50, h: h, passed: false });
             obstacles.push({ x: width, y: h + gap, w: 50, h: height });
         }
 
         obstacles.forEach(obs => {
-            obs.x -= 3.5;
+            obs.x -= 3.8;
             if (player.x < obs.x + obs.w && player.x + player.w > obs.x &&
-                player.y < obs.y + obs.h && player.y + player.h > obs.y) {
-                gameOver();
-            }
+                player.y < obs.y + obs.h && player.y + player.h > obs.y) gameOver();
             if (!obs.passed && obs.x + obs.w < player.x) {
                 obs.passed = true;
                 if (obstacles.indexOf(obs) % 2 === 0) {
@@ -286,44 +255,21 @@
                 }
             }
         });
-
-        obstacles = obstacles.filter(o => o.x + o.w > 0);
-        particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
-        particles = particles.filter(p => p.life > 0);
+        obstacles = obstacles.filter(o => o.x > -50);
     }
 
     function draw() {
         ctx.clearRect(0, 0, width, height);
-          
-        particles.forEach(p => {
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color;
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-        });
-        ctx.globalAlpha = 1;
-
-        player.trail.forEach((pos, i) => {
-            ctx.fillStyle = `rgba(0, 242, 255, ${i / 20})`;
-            ctx.fillRect(pos.x, pos.y, player.w, player.h);
-        });
-
         ctx.shadowBlur = 15; ctx.shadowColor = "#00f2ff";
         ctx.fillStyle = "#fff"; ctx.fillRect(player.x, player.y, player.w, player.h);
-        ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 2;
-        ctx.strokeRect(player.x, player.y, player.w, player.h);
-          
-        ctx.shadowBlur = 15; ctx.shadowColor = "#ff007b";
-        obstacles.forEach(obs => {
-            ctx.fillStyle = "#ff007b";
-            ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-        });
+        ctx.shadowBlur = 15; ctx.shadowColor = "#ff007b"; ctx.fillStyle = "#ff007b";
+        obstacles.forEach(obs => ctx.fillRect(obs.x, obs.y, obs.w, obs.h));
         ctx.shadowBlur = 0;
     }
 
-    function animate() {
-        update(); draw();
-        requestAnimationFrame(animate);
-    }
+    function animate() { update(); draw(); requestAnimationFrame(animate); }
+
+    init();
 </script>
 </body>
 </html>

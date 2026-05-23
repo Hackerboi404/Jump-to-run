@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #05020e;
+  --color-bg-2: #0a0520;
+  --color-neon-purple: #a855f7;
+  --color-neon-blue: #3b82f6;
+  --color-neon-cyan: #06b6d4;
+  --color-neon-pink: #ec4899;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #05020e;
+  color: #e5e7eb;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+* { box-sizing: border-box; }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(168, 85, 247, 0.05); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a855f7, #3b82f6);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #c084fc, #60a5fa); }
+
+/* Glass effect */
+.glass {
+  background: rgba(20, 14, 40, 0.55);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255,255,255,0.04);
+}
+
+.glass-strong {
+  background: rgba(14, 8, 32, 0.85);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+/* Neon glow utilities */
+.neon-purple {
+  box-shadow:
+    0 0 12px rgba(168, 85, 247, 0.5),
+    0 0 30px rgba(168, 85, 247, 0.25),
+    inset 0 0 12px rgba(168, 85, 247, 0.12);
+}
+.neon-blue {
+  box-shadow:
+    0 0 12px rgba(59, 130, 246, 0.5),
+    0 0 30px rgba(59, 130, 246, 0.25);
+}
+.neon-text-purple { text-shadow: 0 0 12px rgba(168, 85, 247, 0.8), 0 0 24px rgba(168, 85, 247, 0.4); }
+.neon-text-blue { text-shadow: 0 0 12px rgba(59, 130, 246, 0.8), 0 0 24px rgba(59, 130, 246, 0.4); }
+
+.gradient-text {
+  background: linear-gradient(135deg, #c084fc 0%, #60a5fa 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Grid pattern overlay */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(168, 85, 247, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Animated glow border */
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(168, 85, 247, 0.4); box-shadow: 0 0 20px rgba(168, 85, 247, 0.3); }
+  50% { border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 0 30px rgba(59, 130, 246, 0.4); }
+}
+.animate-border-glow { animation: borderGlow 4s ease-in-out infinite; }
+
+/* Pulse neon */
+@keyframes pulseNeon {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.6)); }
+  50% { opacity: 0.7; filter: drop-shadow(0 0 16px rgba(168, 85, 247, 1)); }
+}
+.animate-pulse-neon { animation: pulseNeon 2s ease-in-out infinite; }
+
+/* Shimmer for loading */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg,
+    rgba(168, 85, 247, 0.05) 0%,
+    rgba(59, 130, 246, 0.15) 50%,
+    rgba(168, 85, 247, 0.05) 100%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float { animation: float 6s ease-in-out infinite; }
+
+/* Scan line effect */
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+.scan-line::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, rgba(168, 85, 247, 0.08), transparent);
+  height: 100px;
+  animation: scan 8s linear infinite;
+  pointer-events: none;
+}
+
+/* Message bubble tail */
+.bubble-tail::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  border: 6px solid transparent;
+  border-right-color: rgba(168, 85, 247, 0.2);
+}
+
+/* Focus ring */
+input:focus, textarea:focus, select:focus, button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3), 0 0 16px rgba(168, 85, 247, 0.3);
+}
+
+/* Disable tap highlight on mobile */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Smooth page transitions */
+.page-enter { opacity: 0; transform: translateY(10px); }
+.page-enter-active { opacity: 1; transform: translateY(0); transition: all 0.3s ease-out; }
